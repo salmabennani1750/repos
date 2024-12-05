@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Liste des Documents</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 0;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-top: 20px;
+    }
+    .document-category {
+      background-color: #fff;
+      margin: 20px;
+      padding: 20px;
+      border-radius: 5px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+    h2 {
+      color: #007BFF;
+      margin-bottom: 10px;
+    }
+    ul {
+      list-style-type: none;
+      padding: 0;
+    }
+    li {
+      margin: 10px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    a {
+      text-decoration: none;
+      color: #333;
+      font-size: 16px;
+      transition: color 0.3s;
+    }
+    a:hover {
+      color: #007BFF;
+    }
+    .delete-button {
+      background-color: #FF4D4D;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      padding: 5px 10px;
+      cursor: pointer;
+      margin-left: 10px;
+      transition: background-color 0.3s;
+    }
+    .delete-button:hover {
+      background-color: #CC0000;
+    }
+    .space-buttons {
+      text-align: center;
+      margin-top: 20px;
+    }
+    .upload-form {
+      margin: 20px;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+    .upload-form input {
+      padding: 5px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    .upload-form button {
+      padding: 5px 15px;
+      border-radius: 5px;
+      background-color: #007BFF;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+    }
+    .upload-form button:hover {
+      background-color: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <h1>Liste des Documents</h1>
+  <div class="upload-form">
+    <input type="file" id="fileInput" />
+    <button onclick="uploadFile()">Télécharger</button>
+  </div>
+  <div class="space-buttons">
+    <button id="btn-etudiant" onclick="showDocuments('etudiant')">Espace Étudiant</button>
+    <button id="btn-enseignant" onclick="showDocuments('enseignant')">Espace Enseignant</button>
+  </div>
+  <div id="documents-container"></div>
+  <script>
+    const apiUrl = 'https://backend-documents-api-d9ehb3dfdzg4grey.francecentral-01.azurewebsites.net';
+    async function uploadFile() {
+      const fileInput = document.getElementById('fileInput');
+      if (!fileInput.files.length) {
+        alert('Veuillez sélectionner un fichier à télécharger.');
+        return;
+      }
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      try {
+        const response = await fetch(`${apiUrl}/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+        const result = await response.json();
+        alert(result.message);
+        fileInput.value = '';
+        await fetchFiles();
+      } catch (error) {
+        console.error('Erreur lors de l\'upload:', error);
+        alert('Erreur lors de l\'upload');
+      }
+    }
+    async function deleteFile(filename) {
+      if (!confirm(`Êtes-vous sûr(e) de vouloir supprimer le fichier : ${filename} ?`)) return;
+      try {
+        const response = await fetch(`${apiUrl}/delete/${filename}`, {
+          method: 'DELETE',
+        });
+        const result = await response.json();
+        alert(result.message);
+        await fetchFiles();
+      } catch (error) {
+        console.error('Erreur lors de la suppression:', error);
+        alert('Erreur lors de la suppression');
+      }
+    }
+    let files = {
+      "etudiant": [],
+      "enseignant": []
+    };
+    async function fetchFiles() {
+      try {
+        const response = await fetch(`${apiUrl}/search`);
+        const data = await response.json();
+        files.etudiant = data.filter(file => file.includes('etudiant'));
+        files.enseignant = data.filter(file => file.includes('enseignant'));
+        showDocuments('etudiant');
+      } catch (error) {
+        console.error('Erreur lors de la récupération des fichiers:', error);
+      }
+    }
+    function renderDocuments(category) {
+      const container = document.getElementById('documents-container');
+      container.innerHTML = '';
+      const categoryFiles = files[category];
+      if (categoryFiles.length === 0) {
+        container.innerHTML = '<p>Aucun fichier disponible.</p>';
+        return;
+      }
+      categoryFiles.forEach((file) => {
+        const categoryDiv = document.createElement('div');
+        categoryDiv.classList.add('document-category');
+        const categoryTitle = document.createElement('h2');
+        categoryTitle.textContent = category === 'etudiant' ? 'Documents Étudiant' : 'Documents Enseignant';
+        categoryDiv.appendChild(categoryTitle);
+        const ul = document.createElement('ul');
+        const li = document.createElement('li');
+        const link = document.createElement('a');
+        link.href = `${apiUrl}/download/${file}`;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = file;
+        const deleteButton = document.createElement('button');
+        deleteButton.classList.add('delete-button');
+        deleteButton.textContent = 'Supprimer';
+        deleteButton.onclick = () => deleteFile(file);
+        li.appendChild(link);
+        li.appendChild(deleteButton);
+        ul.appendChild(li);
+        categoryDiv.appendChild(ul);
+        container.appendChild(categoryDiv);
+      });
+    }
+    function showDocuments(space) {
+      document.getElementById('btn-etudiant').disabled = (space === 'etudiant');
+      document.getElementById('btn-enseignant').disabled = (space === 'enseignant');
+      renderDocuments(space);
+    }
+    window.onload = async () => {
+      await fetchFiles();
+    };
+  </script>
+</body>
+</html>
